@@ -2,7 +2,7 @@
 // @id              xzf-island-controls
 // @name            XZF Island Controls
 // @description     A living, breathing pill overlay inspired by iPhone's Dynamic Island. Reacts to media, downloads, clipboard, battery, and more.
-// @version         1.4.0.1
+// @version         1.4.0.3
 // @author          Himanshu
 // @github          https://github.com/devcode90
 // @homepage        https://github.com/yagizxzf/XZF-Island-Controls
@@ -16,7 +16,10 @@
 # XZF Island Controls
 
 Based on Dynamic Island for Windows by Himanshu. Full-screen games recognized by
-Windows Game Bar leave a thin, click-through strip at the island's position.
+Windows Game Bar leave a thin strip at the island's position. Hover over it to
+open the island when hover expansion and reveal are enabled. The island animates
+back to the strip when the pointer leaves. The expanded media panel controls
+the volume and mute state of the selected source when its audio session is found.
 
 A fluid, living overlay inspired by Apple's Dynamic Island, bringing a beautiful, highly-responsive UI to your Windows desktop. Built natively with hardware-accelerated Direct2D rendering for a buttery-smooth 60 FPS experience.
 
@@ -213,7 +216,7 @@ We love community contributions! To ensure high-quality updates, please follow t
       - '60': Hide after 60 seconds
   - AutoHideFullscreen: true
     $name: Minimize during full-screen games
-    $description: Leave a thin strip while a game recognized by Windows Game Bar fills the island's monitor.
+    $description: Leave a thin strip while a game recognized by Windows Game Bar fills the island's monitor. The strip opens on hover when both hover settings are enabled.
   - UnhideOnHover: true
     $name: Unhide on hover
     $description: Allow the hidden island to reappear when you hover your mouse over it.
@@ -592,6 +595,7 @@ We love community contributions! To ensure high-quality updates, please follow t
 #include <windowsx.h>
 #include <audioclient.h>
 #include <audiopolicy.h>
+#include <appmodel.h>
 #include <endpointvolume.h>
 #include <mmdeviceapi.h>
 #include <mmreg.h>
@@ -653,6 +657,9 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr wchar_t kWindowClass[] = L"Windhawk.XZFIslandControls";
+constexpr float kGameStripWidth = 64.0f;
+constexpr float kGameStripHeight = 5.0f;
+constexpr float kVolumeControlsHeight = 40.0f;
 constexpr UINT WM_APP_LAYOUT_CHANGED = WM_APP + 0x442;
 constexpr UINT WM_APP_NEW_EVENT = WM_APP + 0x443;
 constexpr UINT WM_APP_MOUSE_WAKE = WM_APP + 0x446;
@@ -3989,6 +3996,11 @@ struct PillClientRect {
     bool valid = false;
 };
 PillClientRect g_pillClientRect;
+// Published by the renderer and consumed by the overlay window on the same thread.
+RECT g_mediaVolumeSliderRect = {};
+RECT g_mediaMuteButtonRect = {};
+bool g_mediaVolumeDragging = false;
+bool g_mediaMutePressed = false;
 
 // The island always uses the fixed stage; the backdrop is painted by separate DWM
 // windows (see DwmBackdrop) and does not depend on the window size.
@@ -8733,6 +8745,132 @@ ComPtr<IMMDeviceEnumerator> g_volumeEnumerator;
 ComPtr<IAudioEndpointVolume> g_endpointVolume;
 VolumeNotifyClient* g_volumeNotifyClient = nullptr;
 
+// Desktop media sessions may expose a configured AUMID or the executable name.
+// Compare whole identities so one browser's player cannot change another app.
+std::wstring MediaSourceExecutablePath(const std::wstring& source) {
+    // System.Link.TargetParsingPath (PKEY_Link_TargetParsingPath).
+    constexpr PROPERTYKEY targetParsingPath{
+        {0xb9b4b3fc, 0x2b51, 0x4a42, {0xb5, 0xd8, 0x32, 0x41, 0x46, 0xaf, 0xcf, 0x25}}, 2};
+    const std::wstring shellPath = L"shell:AppsFolder\\" + source;
+    ComPtr<IShellItem2> item;
+    PWSTR targetPath = nullptr;
+    if (FAILED(SHCreateItemFromParsingName(shellPath.c_str(), nullptr, IID_PPV_ARGS(&item))) ||
+        FAILED(item->GetString(targetParsingPath, &targetPath)) || !targetPath) {
+        return {};
+    }
+    std::wstring result(targetPath);
+    CoTaskMemFree(targetPath);
+    return result;
+}
+
+bool ProcessMatchesMediaSource(DWORD pid, const std::wstring& source, const std::wstring& sourcePath) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return false;
+
+    wchar_t aumid[256];
+    UINT32 aumidLength = ARRAYSIZE(aumid);
+    const bool packagedMatch =
+        GetApplicationUserModelId(process, &aumidLength, aumid) == ERROR_SUCCESS &&
+        CompareStringOrdinal(source.c_str(), -1, aumid, -1, TRUE) == CSTR_EQUAL;
+    CloseHandle(process);
+    if (packagedMatch) return true;
+
+    std::wstring path;
+    if (!ProcessImageNameForPid(pid, &path)) return false;
+    if (!sourcePath.empty()) {
+        return CompareStringOrdinal(sourcePath.c_str(), -1, path.c_str(), -1, TRUE) == CSTR_EQUAL;
+    }
+    const std::wstring exe = ToLowerCopy(BaseNameFromPath(path));
+    const std::wstring id = ToLowerCopy(source);
+    if (id == exe || id == StripExtension(exe)) return true;
+    if (exe == L"chrome.exe") return id.rfind(L"chrome.", 0) == 0;
+    if (exe == L"msedge.exe") return id.rfind(L"msedge.", 0) == 0;
+    if (exe == L"firefox.exe") return id.rfind(L"mozilla.firefox.", 0) == 0 || id.rfind(L"firefox.", 0) == 0;
+    return false;
+}
+
+std::vector<ComPtr<ISimpleAudioVolume>> FindMediaAudioSessions(
+    IMMDeviceEnumerator* enumerator, const std::wstring& source) {
+    std::vector<ComPtr<ISimpleAudioVolume>> active;
+    std::vector<ComPtr<ISimpleAudioVolume>> inactive;
+    ComPtr<IMMDeviceCollection> outputs;
+    UINT outputCount = 0;
+    if (!enumerator || source.empty() ||
+        FAILED(enumerator->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &outputs)) ||
+        FAILED(outputs->GetCount(&outputCount))) {
+        return active;
+    }
+    const std::wstring sourcePath = MediaSourceExecutablePath(source);
+    for (UINT outputIndex = 0; outputIndex < outputCount; ++outputIndex) {
+        ComPtr<IMMDevice> output;
+        ComPtr<IAudioSessionManager2> manager;
+        ComPtr<IAudioSessionEnumerator> sessions;
+        int sessionCount = 0;
+        if (FAILED(outputs->Item(outputIndex, &output)) ||
+            FAILED(output->Activate(__uuidof(IAudioSessionManager2), CLSCTX_ALL, nullptr,
+                                    reinterpret_cast<void**>(manager.GetAddressOf()))) ||
+            FAILED(manager->GetSessionEnumerator(&sessions)) || FAILED(sessions->GetCount(&sessionCount))) {
+            continue;
+        }
+        for (int index = 0; index < sessionCount; ++index) {
+            ComPtr<IAudioSessionControl> control;
+            ComPtr<IAudioSessionControl2> identity;
+            ComPtr<ISimpleAudioVolume> volume;
+            AudioSessionState state;
+            DWORD pid = 0;
+            if (FAILED(sessions->GetSession(index, &control)) || FAILED(control.As(&identity)) ||
+                FAILED(identity->GetState(&state)) || state == AudioSessionStateExpired ||
+                identity->IsSystemSoundsSession() != S_FALSE ||
+                FAILED(identity->GetProcessId(&pid)) || !pid || !ProcessMatchesMediaSource(pid, source, sourcePath) ||
+                FAILED(control.As(&volume))) {
+                continue;
+            }
+            (state == AudioSessionStateActive ? active : inactive).push_back(std::move(volume));
+        }
+    }
+    active.insert(active.end(), inactive.begin(), inactive.end());
+    return active;
+}
+
+struct MediaAudioControls {
+    std::wstring source;
+    std::vector<ComPtr<ISimpleAudioVolume>> volumes;
+    float level = 0.0f;
+    BOOL muted = FALSE;
+
+    bool Read() {
+        return !volumes.empty() && SUCCEEDED(volumes.front()->GetMasterVolume(&level)) &&
+               SUCCEEDED(volumes.front()->GetMute(&muted));
+    }
+
+    bool MatchesDisplayedSource() const {
+        std::lock_guard lock(g_stateMutex);
+        return !source.empty() && g_state.media.available && source == g_state.media.sourceAppUserModelId;
+    }
+};
+MediaAudioControls g_mediaAudio;
+
+void AdjustMediaVolumeFromSlider(int x) {
+    const LONG width = g_mediaVolumeSliderRect.right - g_mediaVolumeSliderRect.left;
+    if (width <= 0 || !g_mediaAudio.MatchesDisplayedSource()) return;
+    const float value = Clamp(static_cast<float>(x - g_mediaVolumeSliderRect.left) / width, 0.0f, 1.0f);
+    for (const auto& volume : g_mediaAudio.volumes) {
+        volume->SetMasterVolume(value, nullptr);
+    }
+    g_mediaAudio.Read();
+    g_layoutDirty = true;
+}
+
+void ToggleMediaMute() {
+    if (!g_mediaAudio.MatchesDisplayedSource() || !g_mediaAudio.Read()) return;
+    const BOOL mute = !g_mediaAudio.muted;
+    for (const auto& volume : g_mediaAudio.volumes) {
+        volume->SetMute(mute, nullptr);
+    }
+    g_mediaAudio.Read();
+    g_layoutDirty = true;
+}
+
 // Event-driven: runs only when BindVolumeEndpoint() rebinds (startup, default output
 // changed, Bluetooth connect/disconnect). Never from a timer or a draw path.
 // "BTH*" enumerator names (BTHENUM, BTHHFENUM, BTHLEENUM) mean a Bluetooth endpoint.
@@ -11812,7 +11950,8 @@ class Renderer {
 
     bool Render(const SharedState& state, const Settings& settings, const Activity& primary,
                 const std::optional<Activity>& secondary, float width, float height,
-                float nudge, bool hover, bool pinned, double now, bool gameStrip = false) {
+                float nudge, bool hover, bool pinned, double now,
+                float gameStripAmount = 0.0f, bool showMediaVolume = false) {
         EnsureTextFormats(settings.sizeScale, settings.fontFamily, settings.textScale);
 
         width = std::max(width, 0.0f);
@@ -11895,12 +12034,13 @@ class Renderer {
             D2D1_ANTIALIAS_MODE_ALIASED);
         target_->Clear(D2D1::ColorF(0, 0.0f));
         BeginFrameResources();
+        g_mediaVolumeSliderRect = {};
+        g_mediaMuteButtonRect = {};
 
         EnsureBrushes(settings, state, now);
         settingsOpacity_ = settings.pillOpacity;
 
-        const bool gameMetricsPresent = primary.kind == IslandKind::Idle &&
-            (settings.gameOverlay || g_gameOverlayPinned.load());
+        const bool gameMetricsPresent = primary.kind == IslandKind::Idle && settings.gameOverlay;
         // True while the island is collapsing to nothing (auto-hide / fullscreen).
         islandHiding_ = primary.width < 1.0f && primary.height < 1.0f && !secondary;
 
@@ -11910,13 +12050,14 @@ class Renderer {
 
 
         if (width >= 2.0f && height >= 2.0f) {
-            if (gameStrip) {
+            if (gameStripAmount > 0.0f) {
                 const auto rect = D2D1::RectF(left, top, left + width, top + height);
-                const float radius = height * 0.5f;
-                if (auto* brush = AcquireBrush(pillBgColor_)) {
+                const float radius = std::min(height * 0.5f, 16.0f * settings.sizeScale);
+                if (auto* brush = AcquireBrush(WithAlpha(pillBgColor_, pillBgColor_.a * gameStripAmount))) {
                     target_->FillRoundedRectangle(D2D1::RoundedRect(rect, radius, radius), brush);
                 }
-            } else if (secondary) {
+            }
+            if (secondary) {
                 const float gap = 12.0f * settings.sizeScale;
                 const float maxH = std::max(primary.height, secondary->height);
                 // Notch / border-merged islands hang from the top edge, so the
@@ -11934,9 +12075,17 @@ class Renderer {
                                       left + primary.width + gap + secondary->width,
                                       sTop + secondary->height),
                          scale, now);
-            } else {
-                DrawPill(state, settings, primary,
-                         D2D1::RectF(left, top, left + width, top + height), scale, now);
+            } else if (gameStripAmount < 1.0f) {
+                const auto rect = D2D1::RectF(left, top, left + width, top + height);
+                auto* fade = gameStripAmount > 0.0f ? AcquireLayer() : nullptr;
+                if (fade) {
+                    target_->PushLayer(D2D1::LayerParameters(rect, nullptr, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
+                                                              D2D1::IdentityMatrix(), 1.0f - gameStripAmount), fade);
+                }
+                DrawPill(state, settings, primary, rect, scale, now, showMediaVolume);
+                if (fade) {
+                    target_->PopLayer();
+                }
             }
         }
 
@@ -11978,7 +12127,7 @@ class Renderer {
             stageValid_ = false;
         }
 
-        if (gameStrip) {
+        if (gameStripAmount >= 1.0f) {
             DwmBackdrop::HideAll();
         } else if (presented) {
             DwmBackdrop::Sync(hwnd_, stage.origin, pillRects_, pillRadii_, pillCount_,
@@ -12781,7 +12930,7 @@ class Renderer {
     }
 
     void DrawPill(const SharedState& state, const Settings& settings, const Activity& activity,
-                  D2D1_RECT_F rect, float scale, double now) {
+                  D2D1_RECT_F rect, float scale, double now, bool showMediaVolume = false) {
         const float cx = (rect.left + rect.right) * 0.5f;
         const float cy = (rect.top + rect.bottom) * 0.5f;
         const float w = (rect.right - rect.left) * scale;
@@ -12828,6 +12977,10 @@ class Renderer {
         float unW = (rect.right - rect.left) * invScale;
         float unH = (rect.bottom - rect.top) * invScale;
         D2D1_RECT_F unscaledRect = D2D1::RectF(pillCenter.x - unW * 0.5f, pillCenter.y - unH * 0.5f, pillCenter.x + unW * 0.5f, pillCenter.y + unH * 0.5f);
+        const float footerHeight = showMediaVolume ?
+            Clamp(unH - MediaLayout::kExpandedHeight, 0.0f, kVolumeControlsHeight) : 0.0f;
+        const float footerBottom = unscaledRect.bottom;
+        unscaledRect.bottom -= footerHeight;
 
         switch (activity.kind) {
             case IslandKind::Media:
@@ -12878,6 +13031,11 @@ class Renderer {
         // ── Apple-style privacy indicator dots ───────────────────────────────
         // Green dot = camera in use, Orange dot = mic in use.
         // Drawn in top-right corner of pill, outside content area.
+        if (footerHeight >= 28.0f) {
+            DrawMediaVolumeControls(
+                D2D1::RectF(unscaledRect.left, unscaledRect.bottom, unscaledRect.right, footerBottom),
+                pillCenter, settings.sizeScale);
+        }
         DrawPrivacyDots(state, settings, unscaledRect, now);
 
         target_->SetTransform(oldTransform);
@@ -15114,7 +15272,7 @@ class Renderer {
 
     void DrawIdleDashboard(const SharedState& state, D2D1_RECT_F rect, const Settings& settings,
                            double now) {
-        if (settings.gameOverlay || g_gameOverlayPinned.load()) {
+        if (settings.gameOverlay) {
             DrawGameOverlay(state, rect, 1.0f);
             return;
         }
@@ -19377,6 +19535,52 @@ class Renderer {
         mutedBrush_->SetOpacity(0.50f);
     }
 
+    void DrawMediaVolumeControls(D2D1_RECT_F row, D2D1_POINT_2F pivot, float scale) {
+        const float y = (row.top + row.bottom) * 0.5f;
+        const auto mute = D2D1::RectF(row.left + 18.0f, y - 14.0f, row.left + 48.0f, y + 14.0f);
+        const auto track = D2D1::RectF(row.left + 62.0f, y - 2.0f, row.right - 62.0f, y + 2.0f);
+        const float fraction = Clamp(g_mediaAudio.level, 0.0f, 1.0f);
+        const float thumbX = track.left + (track.right - track.left) * fraction;
+        if (auto* separator = AcquireBrush(material_.hairline)) {
+            target_->DrawLine(D2D1::Point2F(row.left + 18.0f, row.top),
+                              D2D1::Point2F(row.right - 18.0f, row.top), separator);
+        }
+        if (auto* button = AcquireBrush(g_mediaAudio.muted ? material_.raisedStrong : material_.raised)) {
+            target_->FillRoundedRectangle(D2D1::RoundedRect(mute, 8.0f, 8.0f), button);
+        }
+        auto* foreground = AcquireBrush(material_.textPrimary);
+        if (iconFormat_ && foreground) {
+            const wchar_t* icon = g_mediaAudio.muted ? L"\uE74F" : (usingFluentIcons_ ? L"\uE767" : L"\uE993");
+            iconFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+            iconFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+            target_->DrawTextW(icon, 1, iconFormat_.Get(), mute, foreground, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            iconFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            iconFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+        }
+        DrawAccentTrack(track, g_mediaAudio.muted ? 0.0f : fraction, 2.0f);
+        if (foreground) {
+            target_->FillEllipse(D2D1::Ellipse(D2D1::Point2F(thumbX, y), 5.0f, 5.0f), foreground);
+            wchar_t percent[8];
+            const int length = swprintf_s(percent, L"%d%%", static_cast<int>(std::lround(fraction * 100.0f)));
+            if (length > 0 && smallTextFormat_) {
+                target_->DrawTextW(percent, length, smallTextFormat_.Get(),
+                                   D2D1::RectF(track.right + 12.0f, y - 8.0f, row.right - 12.0f, y + 12.0f),
+                                   foreground, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+            }
+        }
+
+        auto clientRect = [&](D2D1_RECT_F r) {
+            return RECT{
+                std::lround(pivot.x + (r.left - pivot.x) * scale),
+                std::lround(pivot.y + (r.top - pivot.y) * scale),
+                std::lround(pivot.x + (r.right - pivot.x) * scale),
+                std::lround(pivot.y + (r.bottom - pivot.y) * scale)
+            };
+        };
+        g_mediaMuteButtonRect = clientRect(mute);
+        g_mediaVolumeSliderRect = clientRect(D2D1::RectF(track.left, y - 14.0f, track.right, y + 14.0f));
+    }
+
     void DrawVolume(const SharedState& state, D2D1_RECT_F rect) {
         if (rect.bottom - rect.top < 24.0f || rect.right - rect.left < 140.0f) return;
         const bool muted = state.volume.muted || state.volume.percent == 0;
@@ -22082,6 +22286,12 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 GetCursorPos(&pt);
                 ScreenToClient(hwnd, &pt);
 
+                if (g_mediaVolumeDragging || PtInRect(&g_mediaVolumeSliderRect, pt) ||
+                    PtInRect(&g_mediaMuteButtonRect, pt)) {
+                    SetCursor(LoadCursorW(nullptr, IDC_HAND));
+                    return TRUE;
+                }
+
                 bool mediaActive = false;
                 {
                     std::lock_guard lock(g_stateMutex);
@@ -22124,6 +22334,21 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 if (g_lookupUi.open) {
                     s_trayPressActive = false;
                     return 0;  // handled on button-up by HandleLookupClick
+                }
+
+                POINT volumePoint{xPos, yPos};
+                if (PtInRect(&g_mediaVolumeSliderRect, volumePoint)) {
+                    s_touchStartTime = 0;
+                    g_mediaVolumeDragging = true;
+                    SetCapture(hwnd);
+                    AdjustMediaVolumeFromSlider(xPos);
+                    return 0;
+                }
+                if (PtInRect(&g_mediaMuteButtonRect, volumePoint)) {
+                    s_touchStartTime = 0;
+                    g_mediaMutePressed = true;
+                    SetCapture(hwnd);
+                    return 0;
                 }
 
                 // File Tray: remember a press on a row so moving the mouse picks it up
@@ -22194,6 +22419,11 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
             const int xPos = GET_X_LPARAM(lParam);
             const int yPos = GET_Y_LPARAM(lParam);
+
+            if (g_mediaVolumeDragging) {
+                AdjustMediaVolumeFromSlider(xPos);
+                return 0;
+            }
 
             if (g_lookupUi.open) {
                 HandleLookupMouseMove(xPos, yPos);
@@ -22322,6 +22552,8 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         case WM_CAPTURECHANGED:
             if (reinterpret_cast<HWND>(lParam) != hwnd) {
+                g_mediaVolumeDragging = false;
+                g_mediaMutePressed = false;
                 if (g_scrubbing.exchange(false)) {
                     g_layoutDirty = true;
                 }
@@ -22336,6 +22568,15 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         case WM_LBUTTONUP:
             {
+                if (g_mediaVolumeDragging || g_mediaMutePressed) {
+                    const POINT pt{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+                    if (g_mediaVolumeDragging) AdjustMediaVolumeFromSlider(pt.x);
+                    if (g_mediaMutePressed && PtInRect(&g_mediaMuteButtonRect, pt)) ToggleMediaMute();
+                    g_mediaVolumeDragging = false;
+                    g_mediaMutePressed = false;
+                    ReleaseCapture();
+                    return 0;
+                }
                 if (g_scrubbing.load()) {
                     g_scrubbing = false;
                     ReleaseCapture();
@@ -22808,17 +23049,23 @@ DWORD WINAPI RenderThreadProc(void*) {
     double nextBatteryPoll = 0.0;
     double nextProgressPoll = 0.0;
     double nextSystemPoll = 0.0;
+    double nextMediaAudioPoll = 0.0;
+    bool mediaAudioAvailable = false;
     double nextBrightnessPoll = 0.0;
     double nextPrivacyPoll = 0.0;
     bool wasManuallyHidden = false;
     bool wasAutoHiddenParked = false;
     bool isFullscreenGame = false;
     bool gameStripShown = false;
+    bool gameHoverRevealed = false;
+    bool gameStripClosing = false;
+    float gameCloseStartHeight = 0.0f;
     HMONITOR fullscreenMonitor = nullptr;
     DWORD lastGamePid = 0;
     bool lastGameMatch = false;
     double nextFullscreenCheck = 0.0;
     double nextGameMatchCheck = 0.0;
+    double nextStripZOrderCheck = 0.0;
     RECT gameStripRect = {};
 
     static double lastInteractionTime = NowSeconds();
@@ -22910,8 +23157,32 @@ DWORD WINAPI RenderThreadProc(void*) {
             nextFullscreenCheck = now + 0.5;
         }
 
-        const bool showGameStrip =
+        const bool minimizeOverGame =
             isFullscreenGame && !g_fullscreenOverrideVisible.load(std::memory_order_relaxed);
+        bool hoveringOverGame = minimizeOverGame && (g_mediaVolumeDragging || g_mediaMutePressed);
+        const bool revealOnHover = g_settings.unhideOnHover && g_settings.expandOnHover;
+        if (!hoveringOverGame && minimizeOverGame && revealOnHover &&
+            (gameStripShown || gameHoverRevealed || gameStripClosing)) {
+            POINT cursor = {};
+            if (GetCursorPos(&cursor)) {
+                RECT stripHoverRect = gameStripRect;
+                InflateRect(&stripHoverRect, 8, 4);
+                hoveringOverGame = PtInRect(&stripHoverRect, cursor);
+                if (!hoveringOverGame && gameHoverRevealed && g_pillClientRect.valid) {
+                    ScreenToClient(hwnd, &cursor);
+                    const auto& pill = g_pillClientRect;
+                    hoveringOverGame = cursor.x >= pill.left && cursor.x < pill.right &&
+                                       cursor.y >= pill.top && cursor.y < pill.bottom;
+                }
+            }
+        }
+        const bool showGameStrip = minimizeOverGame && !hoveringOverGame;
+        if (showGameStrip && gameHoverRevealed) {
+            gameCloseStartHeight = heightSpring.value;
+            gameStripClosing = true;
+        }
+        gameHoverRevealed = hoveringOverGame;
+        gameStripClosing = showGameStrip && gameStripClosing;
         if (g_autoHiddenParked.load()) {
             if (showGameStrip || g_settings.autoHideIdleSeconds == 0) {
                 g_autoHiddenParked = false;
@@ -22953,21 +23224,22 @@ DWORD WINAPI RenderThreadProc(void*) {
             nextFrameTarget = previousFrame;
         }
 
-        if (showGameStrip) {
+        if (showGameStrip && !gameStripClosing) {
             if (!gameStripShown || g_layoutDirty) {
+                g_mediaAudio = {};
                 SetClickThrough(hwnd, true);
                 g_audioCaptureNeeded.store(false, std::memory_order_relaxed);
                 Settings settings = GetSettingsCopy();
                 if (settings.autoDpiScale) {
                     settings.sizeScale = settings.baseSizeScale * GetMonitorDpiScale(fullscreenMonitor);
                 }
-                const float width = 64.0f * settings.sizeScale;
-                const float height = std::max(2.0f, 5.0f * settings.sizeScale);
+                const float width = kGameStripWidth * settings.sizeScale;
+                const float height = std::max(2.0f, kGameStripHeight * settings.sizeScale);
                 const Activity strip{IslandKind::Idle, width, height};
                 // Keep a stable, unlit surface using the configured pill color.
                 SharedState state;
                 gameStripShown = renderer.Render(state, settings, strip, std::nullopt,
-                                                  width, height, 0.0f, false, false, now, true);
+                                                  width, height, 0.0f, false, false, now, 1.0f);
                 if (gameStripShown) {
                     const StageLayout stage = ComputeStageLayout(settings, width, height);
                     gameStripRect = {
@@ -22981,9 +23253,12 @@ DWORD WINAPI RenderThreadProc(void*) {
                     nudgeSpring.Reset(0.0f);
                 }
             }
-            EnsureTopmost(hwnd, &gameStripRect);
+            if (now >= nextStripZOrderCheck) {
+                EnsureTopmost(hwnd, &gameStripRect);
+                nextStripZOrderCheck = now + 1.0;
+            }
             setHighResTimer(false);
-            MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, 500, QS_ALLINPUT);
+            MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, revealOnHover ? 32 : 500, QS_ALLINPUT);
             previousFrame = std::chrono::steady_clock::now();
             nextFrameTarget = previousFrame;
             continue;
@@ -23114,12 +23389,14 @@ DWORD WINAPI RenderThreadProc(void*) {
             hoverStage.origin.y + static_cast<int>(std::lround(hoverTop + heightSpring.value))
         };
 
-        bool hover = false;
-        if (widthSpring.value > 1.0f && heightSpring.value > 1.0f) {
-            hover = PtInRect(&pillRect, cursor) != FALSE;
-        } else if (g_settings.unhideOnHover) {
-            RECT dockRect = GetIslandDockRect();
-            hover = PtInRect(&dockRect, cursor) != FALSE;
+        bool hover = gameHoverRevealed || g_mediaVolumeDragging || g_mediaMutePressed;
+        if (!hover) {
+            if (widthSpring.value > 1.0f && heightSpring.value > 1.0f) {
+                hover = PtInRect(&pillRect, cursor) != FALSE;
+            } else if (g_settings.unhideOnHover) {
+                RECT dockRect = GetIslandDockRect();
+                hover = PtInRect(&dockRect, cursor) != FALSE;
+            }
         }
 
         // A file drag hovering over the island counts as hover, so it expands onto
@@ -23176,8 +23453,9 @@ DWORD WINAPI RenderThreadProc(void*) {
         }
 
         bool isHoverExpanded = g_settings.expandOnHover ? hover : (hover && g_clickExpanded.load());
-        const bool gameMetricsPresent = primary.kind == IslandKind::Idle &&
+        const bool showGameMetrics = !minimizeOverGame &&
             (g_settings.gameOverlay || g_gameOverlayPinned.load());
+        const bool gameMetricsPresent = primary.kind == IslandKind::Idle && showGameMetrics;
         if (gameMetricsPresent) {
             isHoverExpanded = false;
         }
@@ -23261,8 +23539,7 @@ DWORD WINAPI RenderThreadProc(void*) {
                     g_settings.sizeScale;
             }
         }
-        if (primary.kind == IslandKind::Idle &&
-            (g_settings.gameOverlay || g_gameOverlayPinned.load())) {
+        if (gameMetricsPresent) {
             // Width follows the metrics actually enabled (#25) so switching some
             // off shrinks the strip instead of leaving empty space, and compact
             // mode narrows it enough to sit neatly in the taskbar area. Both the
@@ -23278,10 +23555,35 @@ DWORD WINAPI RenderThreadProc(void*) {
                                                      metricCount) * g_settings.sizeScale;
             primary.height = GameOverlayLayout::For(compact).height * g_settings.sizeScale;
         }
+        const bool wantsMediaVolume = g_settings.volume && !secondary && primary.kind == IslandKind::Media &&
+                                      (isHoverExpanded || pinned || recentTrackChange || gameStripClosing);
+        if (wantsMediaVolume) {
+            const auto& source = snapshot.media.sourceAppUserModelId;
+            const bool sourceChanged = g_mediaAudio.source != source;
+            if (sourceChanged && (g_mediaVolumeDragging || g_mediaMutePressed)) {
+                ReleaseCapture();
+            }
+            if (sourceChanged || (now >= nextMediaAudioPoll && !g_mediaVolumeDragging && !g_mediaMutePressed)) {
+                const bool wasAvailable = mediaAudioAvailable;
+                const float previousLevel = g_mediaAudio.level;
+                const BOOL wasMuted = g_mediaAudio.muted;
+                g_mediaAudio.source = source;
+                g_mediaAudio.volumes = FindMediaAudioSessions(g_volumeEnumerator.Get(), source);
+                mediaAudioAvailable = g_mediaAudio.Read();
+                nextMediaAudioPoll = now + 0.75;
+                needsRender |= sourceChanged || wasAvailable != mediaAudioAvailable ||
+                               previousLevel != g_mediaAudio.level || wasMuted != g_mediaAudio.muted;
+            }
+        } else if (!g_mediaAudio.source.empty()) {
+            g_mediaAudio = {};
+            mediaAudioAvailable = false;
+        }
+        const bool showMediaVolume = wantsMediaVolume && mediaAudioAvailable && !g_mediaAudio.volumes.empty();
         if (primary.kind == IslandKind::Media) {
             if (isHoverExpanded || pinned || recentTrackChange) {
                 primary.width = MediaLayout::kExpandedWidth * g_settings.sizeScale;
-                primary.height = MediaLayout::kExpandedHeight * g_settings.sizeScale;
+                primary.height = (MediaLayout::kExpandedHeight + (showMediaVolume ? kVolumeControlsHeight : 0.0f)) *
+                                 g_settings.sizeScale;
                 // (Immersive lyrics: the island keeps its normal 380px width.)
             } else {
                 // Optional clock section on the left of the collapsed pill.
@@ -23307,14 +23609,18 @@ DWORD WINAPI RenderThreadProc(void*) {
             }
         }
 
-        if (isHidden && !privacyActive && !pinned && !isHoverExpanded && !isTransientAlert) {
+        if (gameStripClosing) {
+            primary.width = kGameStripWidth * g_settings.sizeScale;
+            primary.height = std::max(2.0f, kGameStripHeight * g_settings.sizeScale);
+            secondary.reset();
+        } else if (isHidden && !privacyActive && !pinned && !isHoverExpanded && !isTransientAlert) {
             primary.width = 0.0f;
             primary.height = 0.0f;
             secondary.reset();
         }
 
         const bool mediaWaveformVisible =
-            g_settings.media && snapshot.media.playing &&
+            !gameStripClosing && g_settings.media && snapshot.media.playing &&
             ((primary.kind == IslandKind::Media && primary.width > 1.0f && primary.height > 1.0f) ||
              (secondary && secondary->kind == IslandKind::Media && secondary->width > 1.0f && secondary->height > 1.0f));
         g_audioCaptureNeeded.store(mediaWaveformVisible, std::memory_order_relaxed);
@@ -23411,7 +23717,8 @@ DWORD WINAPI RenderThreadProc(void*) {
         const bool ctrlHeld = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
         const bool ctrlHoverCT = hover && ctrlHeld && !g_lookupUi.open;
 
-        SetClickThrough(hwnd, (primary.kind == IslandKind::Idle && !draggingOrHover && !pinned) || ctrlHoverCT);
+        SetClickThrough(hwnd, gameStripClosing ||
+                        (primary.kind == IslandKind::Idle && !draggingOrHover && !pinned) || ctrlHoverCT);
 
         // Check if animating structurally
         if (std::abs(widthSpring.velocity) > 0.01f || std::abs(widthSpring.target - widthSpring.value) > 0.01f ||
@@ -23658,10 +23965,11 @@ DWORD WINAPI RenderThreadProc(void*) {
             prevCtrlHoverCT = ctrlHoverCT;
         }
 
-        if (needsRender) {
+        if (needsRender || gameStripClosing) {
             // When Ctrl+hover click-through is active, reduce pill opacity so the
             // island becomes visually see-through to match the pass-through behavior.
             Settings renderSettings = GetSettingsCopy();
+            renderSettings.gameOverlay = showGameMetrics;
             if (ctrlHoverCT) {
                 renderSettings.pillOpacity = Clamp(renderSettings.pillOpacity * 0.35f, 0.15f, 0.45f);
             } else if (renderSettings.themePreset == ThemePreset::Graphite && g_pillOpacityOverride.load() < 0) {
@@ -23673,9 +23981,23 @@ DWORD WINAPI RenderThreadProc(void*) {
                 !DwmBackdrop::Available()) {
                 renderSettings.backdropMaterial = BackdropMaterial::None;
             }
-            renderer.Render(snapshot, renderSettings, primary, secondary,
-                            widthSpring.value, heightSpring.value, nudgeSpring.value,
-                            hover, pinned, now);
+            float width = widthSpring.value;
+            float height = heightSpring.value;
+            float gameStripAmount = 0.0f;
+            if (gameStripClosing) {
+                width = std::max(width, targetWidth);
+                height = std::max(height, targetHeight);
+                const float shrink = (gameCloseStartHeight - height) /
+                                     std::max(1.0f, gameCloseStartHeight - targetHeight);
+                gameStripAmount = Clamp(shrink * 1.5f, 0.0f, 1.0f);
+                if (std::fabs(widthSpring.value - targetWidth) < 0.5f &&
+                    std::fabs(heightSpring.value - targetHeight) < 0.5f &&
+                    std::fabs(widthSpring.velocity) < 0.5f && std::fabs(heightSpring.velocity) < 0.5f) {
+                    gameStripClosing = false;
+                }
+            }
+            renderer.Render(snapshot, renderSettings, primary, secondary, width, height,
+                            nudgeSpring.value, hover, pinned, now, gameStripAmount, showMediaVolume);
         }
 
         // Park once the idle auto-hide animation settles.
@@ -23794,6 +24116,7 @@ DWORD WINAPI RenderThreadProc(void*) {
     // Balances whichever state the loop exited in; a no-op if already released.
     setHighResTimer(false);
 
+    g_mediaAudio = {};
     UnbindVolumeEndpoint();
     DwmBackdrop::DestroyAll();
     renderer.Shutdown();

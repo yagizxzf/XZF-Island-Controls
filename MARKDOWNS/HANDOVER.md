@@ -1,13 +1,13 @@
 # Devir
 
-Son güncelleme: 2026-11-16T16:55:35+03:00
+Son güncelleme 2026-11-16T17:17:54+03:00
 
-`main` dalı, Windhawk kataloğundaki Dynamic Island for Windows 1.4.0 ile kaynak dosyası birebir eşleşen upstream `7fe506e` commit'inden türetilmiştir. `origin`, `yagizxzf/XZF-Island-Controls`; `upstream`, `devcode90/Dynamic-Island-for-Windows`.
+`main` dalı, Windhawk kataloğundaki Dynamic Island for Windows 1.4.0 ile kaynak dosyası birebir eşleşen upstream `7fe506e` commit'inden türetilmiştir. `origin` uzak deposu `yagizxzf/XZF-Island-Controls`, `upstream` uzak deposu `devcode90/Dynamic-Island-for-Windows`.
 
-Modun yeni kimliği `xzf-island-controls`, yerel Windhawk kaydı `local@xzf-island-controls`. [Kaynak](../xzf-island-controls.wh.cpp), oyunun pencere sınırlarını hedef monitörle karşılaştırır ve çalıştırılabilir dosyasının tam yolunu Windows Game Bar kayıtlarından doğrular. Tam ekran oyunda giriş almayan yaklaşık 5 px yüksekliğinde bir şerit gösterir. Normal uygulamalarda eski boşta gizlenme kuralı kullanılır. Game Bar kaydı olmayan oyunlar sınıflandırılamaz.
+[Mod kaynağı](../xzf-island-controls.wh.cpp) Windhawk 1.7.3 altında `local@xzf-island-controls` kimliğiyle etkin. Kurulu sürüm `1.4.0.3`. `PreviousConfigs.txt` yerel ayar girdisi. Dosyadaki 100 değer hem varsayılanlara işlendi hem kurulu modda doğrulandı.
 
-`PreviousConfigs.txt` içindeki 100 değer doğrudan modun varsayılanlarına aktarıldı. Kaynak dosyası Windhawk 1.7.3 ile x86 ve x64 olarak derlendi. Açık RDR2 penceresi hem ekranı kaplama hem Game Bar eşleşmesi kontrollerini geçti. Normal çerçevesiz pencere oyun olarak işaretlenmedi. Küçük pencere ve farklı monitör kontrolleri geçti.
+Oyun algılama, Island ile aynı monitörü kaplayan ön plan penceresinin dosya yolunu Windows Game Bar kaydıyla eşleştirir. Game Bar kaydı olmayan oyunlar bu davranışı alamaz. Tam ekran oyun 100% ölçekte 5 px şerit bırakır. Fareyle açılan panel, fare ayrıldığında mevcut animasyon stilinde şeride döner. RDR2 açıkken şerit ölçüldü, hover ve dönüş gözlendi ve kullanıcı son kapanış animasyonunu doğruladı. Normal uygulamalar olağan boşta gizlenme ayarını izler.
 
-Sıradaki adım yerel Windhawk kaydını etkinleştirmek ve gerçek mod çalışırken görünümü doğrulamak. Geliştirme kapsamı [ROADMAP.md](ROADMAP.md) dosyasında.
+Genişletilmiş medya panelinin alt satırı, seçili kaynak Windows ses oturumuyla eşleştiğinde kaynak uygulamanın sesini ve sessiz durumunu değiştirir. YouTube Music ve XZF Browse oturum eşleşmeleri doğrulandı. Ayrı Windows ses oturumu testinde uygulama sesi ve sessiz ayarı değişirken ana sesin sabit kaldığı doğrulandı. x86 ve x64 derlemeleri başarılı.
 
-Devirde sırasıyla [AGENTS.md](AGENTS.md), bu dosya, [ROADMAP.md](ROADMAP.md) ve [PROGRESSION.md](PROGRESSION.md) son kayıtlarını oku.
+Kurulum ve derleme için [README.md](../README.md) ile [AGENTS.md](AGENTS.md) dosyalarına bak. Belirlenen işler [ROADMAP.md](ROADMAP.md) dosyasında. Devirde sırasıyla [AGENTS.md](AGENTS.md), bu dosya, [ROADMAP.md](ROADMAP.md) ve [PROGRESSION.md](PROGRESSION.md) son kayıtlarını oku.
