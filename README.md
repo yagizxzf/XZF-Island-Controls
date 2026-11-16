@@ -1,4 +1,9 @@
-# 🏝️ Dynamic Island for Windows
+# XZF Island Controls
+
+Fork of the Windhawk catalog release of Dynamic Island for Windows 1.4.0 by
+Himanshu. Create a local mod in Windhawk, paste the contents of
+[`xzf-island-controls.wh.cpp`](xzf-island-controls.wh.cpp), then compile and enable
+it. The defaults include the saved Island Controls profile.
 
 A smooth, interactive overlay for your desktop, inspired by Apple's Dynamic Island. It brings a sleek media widget, notifications, and system alerts to Windows without slowing down your PC.
 
@@ -64,7 +69,7 @@ A smooth, interactive overlay for your desktop, inspired by Apple's Dynamic Isla
 - 📖 **Quick Lookup:** Once enabled under Modules, press `Ctrl+Alt+Space` to open a search box right on the island to instantly find definitions or summaries for words and clipboard text.
 - 🔀 **Cross-Source Media Switching:** Smoothly swap between active playback controls of multiple media apps simultaneously without opening the apps.
 - 💾 **Lyrics Cache:** Fast, local caching of lyrics retrieved from LRCLIB (sending title, artist, album, and duration to look up matching tracks) stored in the mod's storage folder with a tiny disk footprint.
-- 📺 **Full-Screen Autohide:** Smart autohide ensures the island stays completely out of your way during full-screen apps, videos, and gaming.
+- 📺 **Full-screen games:** A foreground game recognized by Windows Game Bar that fills the island's monitor leaves a click-through strip about five pixels high at 100% scale. This also works in borderless full screen. When focus leaves the game, the island resumes its regular behavior. Other full-screen apps follow the usual idle timeout. The visibility shortcut can temporarily show the full island over the game.
 - 🙈 **Instant Hide/Unhide:** Toggle the island visibility instantly with a customizable shortcut (Default: `Ctrl+Alt+D`). It consumes almost no CPU while hidden!
 - 🕒 **Expandable Hover Clock:** Hover over the island to instantly expand a sleek clock displaying the current time and date.
 - ⏱️ **Built-in Focus Timer:** Stay productive by launching a focus timer anytime simply by right-clicking the island.

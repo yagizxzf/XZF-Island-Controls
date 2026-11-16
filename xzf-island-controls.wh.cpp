@@ -1,10 +1,11 @@
 // ==WindhawkMod==
-// @id              dynamic-island-for-windows
-// @name            Dynamic Island for Windows
+// @id              xzf-island-controls
+// @name            XZF Island Controls
 // @description     A living, breathing pill overlay inspired by iPhone's Dynamic Island. Reacts to media, downloads, clipboard, battery, and more.
-// @version         1.4.0
+// @version         1.4.0.1
 // @author          Himanshu
 // @github          https://github.com/devcode90
+// @homepage        https://github.com/yagizxzf/XZF-Island-Controls
 // @include         windhawk.exe
 // @compilerOptions -lole32 -loleaut32 -lshcore -ld2d1 -ldwrite -ldwmapi -lgdi32 -luser32 -lshell32 -lruntimeobject -lwindowscodecs -lsetupapi -lwinhttp -lpdh -lwinmm
 // @license         MIT
@@ -12,7 +13,10 @@
 
 // ==WindhawkModReadme==
 /*
-# Dynamic Island for Windows
+# XZF Island Controls
+
+Based on Dynamic Island for Windows by Himanshu. Full-screen games recognized by
+Windows Game Bar leave a thin, click-through strip at the island's position.
 
 A fluid, living overlay inspired by Apple's Dynamic Island, bringing a beautiful, highly-responsive UI to your Windows desktop. Built natively with hardware-accelerated Direct2D rendering for a buttery-smooth 60 FPS experience.
 
@@ -152,7 +156,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - BorderMergedMode: false
     $name: Border-Merged Mode
     $description: Attach the island flush to the top edge of the monitor without a floating gap.
-  - ShapeStyle: default
+  - ShapeStyle: notch
     $name: Island Shape Style
     $description: Change the overall shape of the island (Pill, Windows 11, or macOS Notch).
     $options:
@@ -197,7 +201,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - ExpandOnHover: true
     $name: Expand on hover
     $description: Expand the island automatically when hovered. If disabled, click to expand.
-  - AutoHideIdleSeconds: '0'
+  - AutoHideIdleSeconds: '3'
     $name: Auto-hide island (all states)
     $description: Hide the island (including idle, media, and other states) after this many seconds of inactivity. 0 to disable.
     $options:
@@ -208,8 +212,8 @@ We love community contributions! To ensure high-quality updates, please follow t
       - '30': Hide after 30 seconds
       - '60': Hide after 60 seconds
   - AutoHideFullscreen: true
-    $name: Hide on full screen
-    $description: Automatically hide the island when playing a video or app in full screen mode.
+    $name: Minimize during full-screen games
+    $description: Leave a thin strip while a game recognized by Windows Game Bar fills the island's monitor.
   - UnhideOnHover: true
     $name: Unhide on hover
     $description: Allow the hidden island to reappear when you hover your mouse over it.
@@ -254,7 +258,7 @@ We love community contributions! To ensure high-quality updates, please follow t
     $description: Spin the album cover in the collapsed pill when the song changes. Turn off to swap the cover instantly.
   $name: Animations & Performance
 - Themes:
-  - ThemePreset: obsidian
+  - ThemePreset: nord
     $name: Theme preset
     $description: Select a curated color theme, or choose Custom to use your own hex colors below.
     $options:
@@ -273,7 +277,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - TintIntensity: 72
     $name: Background tint intensity
     $description: 0 to 100. Controls how dark the background tint behind the island is.
-  - BackdropMaterial: none
+  - BackdropMaterial: blur
     $name: Backdrop material (real Windows blur)
     $description: Paints genuine Windows blur or acrylic behind the island so your desktop and windows show through it, using the same effect the system uses for its own surfaces. Acrylic adds Windows' frosted grain and a tint of your background colour (see Acrylic tint strength). Requires Windows 10 1803 or newer, and Windows' Transparency effects must be turned ON (Settings > Personalization > Colors > Transparency effects, or on Windows 11 also Settings > Accessibility > Visual effects). If it is off, or Battery saver is on, you will only see a flat tint with no blur. When this is on, use Backdrop fill opacity below to control how much of the blur comes through.
     $options:
@@ -305,7 +309,7 @@ We love community contributions! To ensure high-quality updates, please follow t
       - auto: Auto, from album art
       - system: System (Device Accent)
       - custom: Custom hex
-  - CustomAccentHex: "#4cc9f0"
+  - CustomAccentHex: '#4cc9f0'
     $name: Custom accent hex
     $description: The hex color to use when the accent mode is set to Custom.
   - CalendarAccent: red
@@ -317,7 +321,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - ClockAccentGlow: true
     $name: Show clock background circle/glow
     $description: Display the soft accent circle/glow behind the time in the expanded clock view. Turn off for a clean, minimal clock without background glow.
-  - FontFamily: ""
+  - FontFamily: ''
     $name: Font family
     $description: Custom font family for island text (e.g. Segoe UI, Arial, Aptos, Consolas). Leave empty for system default.
   - ContourBorderMode: default
@@ -327,16 +331,16 @@ We love community contributions! To ensure high-quality updates, please follow t
       - default: Default
       - auto: Auto (From album art)
       - borderless: Borderless
-  - ContourBorderHex: "#1E1E22"
+  - ContourBorderHex: '#1E1E22'
     $name: Contour border hex color
     $description: 'Hex color for the island contour stroke. Changing it from the default overrides the selected Theme preset; restore the default to go back to the preset.'
-  - PillBgColor: "#08080A"
+  - PillBgColor: '#08080A'
     $name: Pill background color
     $description: 'Hex color for the island background. Accepts 3, 4, 6 or 8 hex digits, so use the 8-digit RRGGBBAA form for a translucent background (for example 0D0D0FB0) while keeping the text and icons opaque. Changing it from the default overrides the selected Theme preset; restore the default to go back to the preset.'
-  - TextPrimaryColor: "#FFFFFF"
+  - TextPrimaryColor: '#FFFFFF'
     $name: Primary text color
     $description: 'Accessible hex color for titles and main text. Changing it from the default overrides the selected Theme preset; restore the default to go back to the preset.'
-  - TextSecondaryColor: "#9B9BA5"
+  - TextSecondaryColor: '#9B9BA5'
     $name: Secondary text color
     $description: 'Accessible hex color for artist names and muted labels. Changing it from the default overrides the selected Theme preset; restore the default to go back to the preset.'
   $name: Colors & Theming
@@ -347,13 +351,13 @@ We love community contributions! To ensure high-quality updates, please follow t
   - PrivacyDotsMic: true
     $name: Show microphone indicator (Orange dot)
     $description: Show the orange dot when microphone is in use. Turn off if background apps (like Discord/OBS) keep it permanently active.
-  - PrivacyDotsMicHex: "#FF9500"
+  - PrivacyDotsMicHex: '#FF9500'
     $name: Microphone dot color
     $description: Custom hex color for microphone privacy indicator.
   - PrivacyDotsCam: true
     $name: Show camera indicator (Green dot)
     $description: Show the green dot when webcam is in use.
-  - PrivacyDotsCamHex: "#34C759"
+  - PrivacyDotsCamHex: '#34C759'
     $name: Camera dot color
     $description: Custom hex color for camera privacy indicator.
   $name: Privacy Indicators
@@ -361,10 +365,10 @@ We love community contributions! To ensure high-quality updates, please follow t
   - Media: true
     $name: Media module
     $description: Shows album art, song info, and playback controls when music is playing.
-  - MediaAutoExpand: false
+  - MediaAutoExpand: true
     $name: Auto-expand on track change
     $description: Automatically expand the island when a new song or video starts playing. If disabled, album art updates smoothly in the collapsed pill without unprompted expansion.
-  - MediaPillClock: false
+  - MediaPillClock: true
     $name: Show clock in the collapsed media pill
     $description: While media is playing, the collapsed pill also shows the current time on the left, separated from the album cover by a thin divider. Hovering still opens the normal player. Uses the same 12h/24h and seconds options as the clock below. Off by default.
   - Volume: true
@@ -397,7 +401,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - StatusCountdownProgress: false
     $name: Status countdown progress bar
     $description: Shows a subtle countdown progress bar at the bottom of temporary status alert cards (such as Clipboard, Notifications, and Device alerts). Disabled by default.
-  - DoNotDisturbIndicator: true
+  - DoNotDisturbIndicator: false
     $name: Do Not Disturb status alert
     $description: Shows a status alert card when Do Not Disturb is toggled in the Windows notification panel.
   - NotificationRespectDnD: true
@@ -406,7 +410,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - HardwareMonitorModule: true
     $name: Include Hardware Monitor in scroll loop
     $description: Add CPU, GPU, RAM, FPS and Network stats card to mouse-wheel scroll loop.
-  - GameOverlay: false
+  - GameOverlay: true
     $name: Enable game overlay mode
     $description: Replaces the clock with live stats like FPS, CPU, and RAM usage.
   - ShowMetricText: false
@@ -415,16 +419,16 @@ We love community contributions! To ensure high-quality updates, please follow t
   - Weather: true
     $name: Weather module
     $description: Shows the weather on the right side of the pill. Turn off to only show the clock.
-  - WeatherCity: ""
+  - WeatherCity: ''
     $name: Weather City (Optional)
     $description: Enter your city (e.g. London). Leave blank to use auto IP geolocation.
   - WeatherFahrenheit: false
     $name: Use Fahrenheit
     $description: Display weather temperature and wind speed in imperial units.
-  - MediaTabLyrics: false
+  - MediaTabLyrics: true
     $name: Lyrics in the media tab
     $description: Adds a lyrics button to the media player controls to toggle an immersive lyrics view over the media tab. Can also be toggled from the right-click menu.
-  - Lyrics: false
+  - Lyrics: true
     $name: Lyrics module
     $description: Shows synced lyrics for the current track (fetched from LRCLIB, a free open-source lyrics database) while the island is expanded. Scroll to the Lyrics tab to view them.
   - LyricsVisualizer: true
@@ -448,7 +452,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - LyricsCache: true
     $name: Lyrics cache (disk)
     $description: Instant lyrics, less load on LRCLIB, tiny disk use, clearable anytime. Stored in the mod's storage folder. Turn off to stop all lyrics disk reads and writes.
-  - LyricsCacheMaxMB: '25'
+  - LyricsCacheMaxMB: '0'
     $name: Lyrics cache size limit
     $description: Least recently used files are deleted once the cache grows past this. Off disables the disk cache.
     $options:
@@ -483,7 +487,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - ShowSeconds: false
     $name: Show seconds on the clock
     $description: Include seconds in the expanded clock. Costs a little more CPU because the clock then redraws every second.
-  - DateFormat: ""
+  - DateFormat: ''
     $name: Custom date format
     $description: 'Custom date pattern for the idle dashboard. Leave empty to follow your Windows locale. Supports yyyy (year), MM / M (month), dd / d (day), MMM (short month name), MMMM (full month name), ddd / dddd (weekday). Any other characters are printed as-is, so CJK formats like yyyy年MM月dd日 work.'
   - DateFirst: false
@@ -508,7 +512,7 @@ We love community contributions! To ensure high-quality updates, please follow t
   - FileTrayPersist: true
     $name: File Tray remembers items (disk)
     $description: Keeps the tray's contents across restarts, in the mod's storage folder. Only file paths and pasted text snippets are stored, never copies of your files. Turn off to stop all disk reads and writes and delete the saved list.
-  - MediaExpandBlocklist: ""
+  - MediaExpandBlocklist: ''
     $name: Never auto-expand for these apps
     $description: 'Comma-separated list of app or site names that should never make the island expand on a track change, while still updating quietly in the collapsed pill. Matched loosely against the media source and title, for example: chrome, tiktok, youtube.'
   - GameOverlayShowFps: true
@@ -543,7 +547,7 @@ We love community contributions! To ensure high-quality updates, please follow t
       - alt_shift: Alt + Shift
       - win_alt: Win + Alt
       - ctrl_alt_shift: Ctrl + Alt + Shift
-  - HideShowKey: "D"
+  - HideShowKey: D
     $name: Hotkey letter/number key
     $description: A single A-Z or 0-9 key combined with the modifiers above. Falls back to "D" if left blank or invalid.
   - LookupModifiers: ctrl_alt
@@ -555,7 +559,7 @@ We love community contributions! To ensure high-quality updates, please follow t
       - alt_shift: Alt + Shift
       - win_alt: Win + Alt
       - ctrl_alt_shift: Ctrl + Alt + Shift
-  - LookupKey: "Space"
+  - LookupKey: Space
     $name: Quick Lookup hotkey key
     $description: 'Type Space, or a single A-Z or 0-9 key. Falls back to Space if left blank or invalid.'
   $name: Shortcuts & Hotkeys
@@ -648,7 +652,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr wchar_t kWindowClass[] = L"Windhawk.DynamicIslandForWindows";
+constexpr wchar_t kWindowClass[] = L"Windhawk.XZFIslandControls";
 constexpr UINT WM_APP_LAYOUT_CHANGED = WM_APP + 0x442;
 constexpr UINT WM_APP_NEW_EVENT = WM_APP + 0x443;
 constexpr UINT WM_APP_MOUSE_WAKE = WM_APP + 0x446;
@@ -1721,8 +1725,8 @@ UINT g_registeredHotkeyModifiers = 0;            // modifiers currently register
 UINT g_registeredHotkeyVk = 0;                   // vk currently registered with the OS
 bool g_hotkeyRegistered = false;
 
-// --- Zero-CPU parking for idle/fullscreen auto-hide (mirrors g_manuallyHidden) ---
-std::atomic<bool> g_autoHiddenParked = false;          // true while OS-hidden due to idle/fullscreen auto-hide
+// Idle auto-hide parks the window while it waits for new activity.
+std::atomic<bool> g_autoHiddenParked = false;
 std::atomic<bool> g_fullscreenOverrideVisible = false; // user forced the island visible via hotkey while fullscreen
 std::atomic<bool> g_isFullscreen = false;              // cached fullscreen state, shared with the hotkey handler
 std::atomic<double> g_hotkeyUnhideUntil = 0.0;         // grace deadline to keep island visible after hotkey / settings unhide
@@ -2648,43 +2652,31 @@ D2D1_COLOR_F EnsureContrastAgainstBackground(D2D1_COLOR_F candidate, D2D1_COLOR_
     return candidate;
 }
 
-// Returns true if the currently active foreground window is in full screen mode
-bool IsForegroundFullscreen(HWND targetHwnd) {
+HWND ForegroundFullscreenWindow(HWND targetHwnd, HMONITOR anchorMonitor) {
     HWND fg = GetForegroundWindow();
-    if (!fg || fg == targetHwnd || fg == GetDesktopWindow() || fg == GetShellWindow()) {
-        return false;
+    if (!fg || fg == targetHwnd || fg == GetShellWindow() ||
+        IsIconic(fg) || !IsWindowVisible(fg) ||
+        MonitorFromWindow(fg, MONITOR_DEFAULTTONULL) != anchorMonitor) {
+        return nullptr;
     }
 
-    if (!IsWindowVisible(fg)) return false;
-
-    wchar_t className[256] = {};
-    GetClassNameW(fg, className, 256);
-    if (wcscmp(className, L"WorkerW") == 0 || wcscmp(className, L"Progman") == 0 ||
-        wcscmp(className, L"Shell_TrayWnd") == 0) {
-        return false;
-    }
-
-    RECT clientRect = {};
-    if (!GetClientRect(fg, &clientRect)) return false;
-    POINT pt = {0, 0};
-    ClientToScreen(fg, &pt);
-    clientRect.left += pt.x;
-    clientRect.right += pt.x;
-    clientRect.top += pt.y;
-    clientRect.bottom += pt.y;
-
-    HMONITOR hMon = MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = { sizeof(MONITORINFO) };
-    if (GetMonitorInfoW(hMon, &mi)) {
-        if (clientRect.left <= mi.rcMonitor.left &&
-            clientRect.top <= mi.rcMonitor.top &&
-            clientRect.right >= mi.rcMonitor.right &&
-            clientRect.bottom >= mi.rcMonitor.bottom) {
-            return true;
-        }
+    RECT client = {};
+    if (!GetMonitorInfoW(anchorMonitor, &mi) || !GetClientRect(fg, &client)) {
+        return nullptr;
     }
 
-    return false;
+    POINT topLeft{client.left, client.top};
+    POINT bottomRight{client.right, client.bottom};
+    if (!ClientToScreen(fg, &topLeft) || !ClientToScreen(fg, &bottomRight)) {
+        return nullptr;
+    }
+
+    constexpr LONG tolerance = 2;
+    return topLeft.x <= mi.rcMonitor.left + tolerance &&
+           topLeft.y <= mi.rcMonitor.top + tolerance &&
+           bottomRight.x >= mi.rcMonitor.right - tolerance &&
+           bottomRight.y >= mi.rcMonitor.bottom - tolerance ? fg : nullptr;
 }
 
 struct MonitorEnumData {
@@ -4533,6 +4525,40 @@ bool ProcessImageNameForPid(DWORD pid, std::wstring* imageName) {
         *imageName = path;
     }
     return ok;
+}
+
+bool IsGameBarGame(DWORD pid) {
+    std::wstring imagePath;
+    if (!ProcessImageNameForPid(pid, &imagePath)) {
+        return false;
+    }
+
+    // Game Bar caches Win32 game matches here. Require the full image path:
+    // a browser in F11 or an unrelated executable with the same name is ambiguous.
+    HKEY games;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"System\\GameConfigStore\\Children",
+                      0, KEY_READ, &games) != ERROR_SUCCESS) {
+        return false;
+    }
+
+    bool matched = false;
+    for (DWORD index = 0; !matched; ++index) {
+        wchar_t name[256];
+        DWORD nameLength = ARRAYSIZE(name);
+        if (RegEnumKeyExW(games, index, name, &nameLength, nullptr, nullptr,
+                          nullptr, nullptr) != ERROR_SUCCESS) {
+            break;
+        }
+
+        wchar_t path[MAX_PATH];
+        DWORD pathBytes = sizeof(path);
+        if (RegGetValueW(games, name, L"MatchedExeFullPath", RRF_RT_REG_SZ,
+                         nullptr, path, &pathBytes) == ERROR_SUCCESS) {
+            matched = CompareStringOrdinal(imagePath.c_str(), -1, path, -1, TRUE) == CSTR_EQUAL;
+        }
+    }
+    RegCloseKey(games);
+    return matched;
 }
 
 HICON CopyWindowIcon(HWND hwnd, WPARAM iconType) {
@@ -11786,7 +11812,7 @@ class Renderer {
 
     bool Render(const SharedState& state, const Settings& settings, const Activity& primary,
                 const std::optional<Activity>& secondary, float width, float height,
-                float nudge, bool hover, bool pinned, double now) {
+                float nudge, bool hover, bool pinned, double now, bool gameStrip = false) {
         EnsureTextFormats(settings.sizeScale, settings.fontFamily, settings.textScale);
 
         width = std::max(width, 0.0f);
@@ -11884,7 +11910,13 @@ class Renderer {
 
 
         if (width >= 2.0f && height >= 2.0f) {
-            if (secondary) {
+            if (gameStrip) {
+                const auto rect = D2D1::RectF(left, top, left + width, top + height);
+                const float radius = height * 0.5f;
+                if (auto* brush = AcquireBrush(pillBgColor_)) {
+                    target_->FillRoundedRectangle(D2D1::RoundedRect(rect, radius, radius), brush);
+                }
+            } else if (secondary) {
                 const float gap = 12.0f * settings.sizeScale;
                 const float maxH = std::max(primary.height, secondary->height);
                 // Notch / border-merged islands hang from the top edge, so the
@@ -11946,7 +11978,9 @@ class Renderer {
             stageValid_ = false;
         }
 
-        if (presented) {
+        if (gameStrip) {
+            DwmBackdrop::HideAll();
+        } else if (presented) {
             DwmBackdrop::Sync(hwnd_, stage.origin, pillRects_, pillRadii_, pillCount_,
                               settings.notchStyle, settings.backdropMaterial, pillBgColor_,
                               settings.backdropTint);
@@ -22616,7 +22650,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                         g_manuallyHidden = false;
                         Wh_SetIntValue(L"ManuallyHidden", 0);
                         g_autoHiddenParked = false;
-                        g_fullscreenOverrideVisible = true;
                         g_hotkeyUnhideUntil.store(NowSeconds() + (g_settings.autoHideIdleSeconds > 0 ? g_settings.autoHideIdleSeconds : 6.0));
                         g_layoutDirty = true;
                         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -22666,7 +22699,7 @@ DWORD WINAPI RenderThreadProc(void*) {
 
     HWND hwnd = CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
-        kWindowClass, L"Dynamic Island for Windows", WS_POPUP, 0, 0, 520, 140,
+        kWindowClass, L"XZF Island Controls", WS_POPUP, 0, 0, 520, 140,
         nullptr, nullptr, wc.hInstance, nullptr);
 
     if (!hwnd) {
@@ -22779,7 +22812,14 @@ DWORD WINAPI RenderThreadProc(void*) {
     double nextPrivacyPoll = 0.0;
     bool wasManuallyHidden = false;
     bool wasAutoHiddenParked = false;
-    bool parkedForFullscreen = false;
+    bool isFullscreenGame = false;
+    bool gameStripShown = false;
+    HMONITOR fullscreenMonitor = nullptr;
+    DWORD lastGamePid = 0;
+    bool lastGameMatch = false;
+    double nextFullscreenCheck = 0.0;
+    double nextGameMatchCheck = 0.0;
+    RECT gameStripRect = {};
 
     static double lastInteractionTime = NowSeconds();
     while (WaitForSingleObject(g_stopEvent, 0) == WAIT_TIMEOUT) {
@@ -22841,27 +22881,45 @@ DWORD WINAPI RenderThreadProc(void*) {
             }
         }
 
+        const double now = NowSeconds();
+        if (!g_settings.autoHideFullscreen || now >= nextFullscreenCheck) {
+            HWND foreground = nullptr;
+            if (g_settings.autoHideFullscreen) {
+                const HMONITOR anchorMonitor = GetAnchorMonitor();
+                foreground = ForegroundFullscreenWindow(hwnd, anchorMonitor);
+                if (anchorMonitor != fullscreenMonitor) {
+                    fullscreenMonitor = anchorMonitor;
+                    g_layoutDirty = true;
+                }
+            }
+            DWORD pid = 0;
+            if (foreground) {
+                GetWindowThreadProcessId(foreground, &pid);
+            }
+            if (pid != lastGamePid || (pid != 0 && !lastGameMatch && now >= nextGameMatchCheck)) {
+                lastGamePid = pid;
+                lastGameMatch = pid != 0 && IsGameBarGame(pid);
+                nextGameMatchCheck = now + 5.0;
+            }
+            const bool fullscreen = pid != 0 && lastGameMatch;
+            if (isFullscreenGame && !fullscreen) {
+                g_fullscreenOverrideVisible = false;
+            }
+            isFullscreenGame = fullscreen;
+            g_isFullscreen.store(fullscreen, std::memory_order_relaxed);
+            nextFullscreenCheck = now + 0.5;
+        }
+
+        const bool showGameStrip =
+            isFullscreenGame && !g_fullscreenOverrideVisible.load(std::memory_order_relaxed);
         if (g_autoHiddenParked.load()) {
-            if (g_settings.autoHideIdleSeconds == 0 && !parkedForFullscreen) {
+            if (showGameStrip || g_settings.autoHideIdleSeconds == 0) {
                 g_autoHiddenParked = false;
             } else {
                 previousFrame = std::chrono::steady_clock::now();
-                // Auto-parked, so nothing is animating; same reasoning as above.
                 setHighResTimer(false);
-                if (parkedForFullscreen) {
-                    MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, 1500, QS_ALLINPUT);
-                    const bool stillFullscreen =
-                        g_settings.autoHideFullscreen && IsForegroundFullscreen(hwnd);
-                    g_isFullscreen.store(stillFullscreen, std::memory_order_relaxed);
-                    if (!stillFullscreen) {
-                        g_fullscreenOverrideVisible = false;
-                        g_autoHiddenParked = false;
-                    } else if (g_fullscreenOverrideVisible.load()) {
-                        g_autoHiddenParked = false;
-                    }
-                } else {
-                    MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, INFINITE, QS_ALLINPUT);
-                }
+                const DWORD wait = g_settings.autoHideFullscreen ? 500 : INFINITE;
+                MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, wait, QS_ALLINPUT);
                 nextFrameTarget = std::chrono::steady_clock::now();
                 continue;
             }
@@ -22895,7 +22953,47 @@ DWORD WINAPI RenderThreadProc(void*) {
             nextFrameTarget = previousFrame;
         }
 
-        const double now = NowSeconds();
+        if (showGameStrip) {
+            if (!gameStripShown || g_layoutDirty) {
+                SetClickThrough(hwnd, true);
+                g_audioCaptureNeeded.store(false, std::memory_order_relaxed);
+                Settings settings = GetSettingsCopy();
+                if (settings.autoDpiScale) {
+                    settings.sizeScale = settings.baseSizeScale * GetMonitorDpiScale(fullscreenMonitor);
+                }
+                const float width = 64.0f * settings.sizeScale;
+                const float height = std::max(2.0f, 5.0f * settings.sizeScale);
+                const Activity strip{IslandKind::Idle, width, height};
+                // Keep a stable, unlit surface using the configured pill color.
+                SharedState state;
+                gameStripShown = renderer.Render(state, settings, strip, std::nullopt,
+                                                  width, height, 0.0f, false, false, now, true);
+                if (gameStripShown) {
+                    const StageLayout stage = ComputeStageLayout(settings, width, height);
+                    gameStripRect = {
+                        stage.origin.x + static_cast<LONG>(stage.pillLeft),
+                        stage.origin.y + static_cast<LONG>(stage.pillTop),
+                        stage.origin.x + static_cast<LONG>(std::ceil(stage.pillLeft + width)),
+                        stage.origin.y + static_cast<LONG>(std::ceil(stage.pillTop + height))
+                    };
+                    widthSpring.Reset(width);
+                    heightSpring.Reset(height);
+                    nudgeSpring.Reset(0.0f);
+                }
+            }
+            EnsureTopmost(hwnd, &gameStripRect);
+            setHighResTimer(false);
+            MsgWaitForMultipleObjects(1, &g_stopEvent, FALSE, 500, QS_ALLINPUT);
+            previousFrame = std::chrono::steady_clock::now();
+            nextFrameTarget = previousFrame;
+            continue;
+        }
+        if (gameStripShown) {
+            gameStripShown = false;
+            lastInteractionTime = now;
+            g_layoutDirty = true;
+        }
+
         // True while a tab transition is genuinely being painted. The registry /
         // device polls below run on this thread and can take several ms, which
         // shows up as a hitch mid-animation, so they wait for the spring to settle.
@@ -23103,26 +23201,11 @@ DWORD WINAPI RenderThreadProc(void*) {
             }
         }
 
-        static bool isFullscreen = false;
-        static double lastFullscreenCheck = -1.0;  // -1.0 guarantees the very first iteration checks
-        if (now - lastFullscreenCheck > 0.5) {
-            const bool newFullscreen = g_settings.autoHideFullscreen && IsForegroundFullscreen(hwnd);
-            if (isFullscreen && !newFullscreen) {
-                // Fullscreen ended — re-arm so the next fullscreen session
-                // hides again even if the hotkey was used to reveal the
-                // island this time.
-                g_fullscreenOverrideVisible = false;
-            }
-            isFullscreen = newFullscreen;
-            g_isFullscreen.store(isFullscreen, std::memory_order_relaxed);
-            lastFullscreenCheck = now;
-        }
-
         // Reclaim the top of the z-order if another always-on-top window has
         // been raised over the island. Cheap and rate-limited, and skipped
         // while the island is hidden or suppressed so it cannot un-hide itself.
         static double lastTopmostCheck = 0.0;
-        if (!isFullscreen && !g_manuallyHidden.load() && !g_autoHiddenParked.load() &&
+        if (!g_manuallyHidden.load() && !g_autoHiddenParked.load() &&
             now - lastTopmostCheck > 1.0) {
             EnsureTopmost(hwnd, &pillRect);
             lastTopmostCheck = now;
@@ -23143,8 +23226,8 @@ DWORD WINAPI RenderThreadProc(void*) {
         const int metricTabIdx = NormalizedTabIndex(g_settings);
         const bool onHardwareMonitorTab = (metricTabIdx == HardwareMonitorTabIndex(g_settings));
         const bool hwMonitorVisible = (primary.kind == IslandKind::Idle || primary.kind == IslandKind::Media) &&
-            !isFullscreen && !gameMetricsPresent && (pinned || isHoverExpanded) && onHardwareMonitorTab;
-        const bool gameOverlayVisible = gameMetricsPresent && !isFullscreen;
+            !gameMetricsPresent && (pinned || isHoverExpanded) && onHardwareMonitorTab;
+        const bool gameOverlayVisible = gameMetricsPresent;
         const bool systemMetricsVisible = hwMonitorVisible || gameOverlayVisible;
 
         if (g_settings.brightness && !pollBusy && now >= nextBrightnessPoll) {
@@ -23164,7 +23247,7 @@ DWORD WINAPI RenderThreadProc(void*) {
         }
 
         if (primary.kind == IslandKind::Idle) {
-            if (!isFullscreen && (pinned || isHoverExpanded)) {
+            if (pinned || isHoverExpanded) {
                 primary.width = MediaLayout::kExpandedWidth * g_settings.sizeScale;
                 primary.height = MediaLayout::kExpandedHeight * g_settings.sizeScale;
             } else if (primary.width > 0.0f) {
@@ -23178,7 +23261,7 @@ DWORD WINAPI RenderThreadProc(void*) {
                     g_settings.sizeScale;
             }
         }
-        if (!isFullscreen && primary.kind == IslandKind::Idle &&
+        if (primary.kind == IslandKind::Idle &&
             (g_settings.gameOverlay || g_gameOverlayPinned.load())) {
             // Width follows the metrics actually enabled (#25) so switching some
             // off shrinks the strip instead of leaving empty space, and compact
@@ -23196,7 +23279,7 @@ DWORD WINAPI RenderThreadProc(void*) {
             primary.height = GameOverlayLayout::For(compact).height * g_settings.sizeScale;
         }
         if (primary.kind == IslandKind::Media) {
-            if (!isFullscreen && (isHoverExpanded || pinned || recentTrackChange)) {
+            if (isHoverExpanded || pinned || recentTrackChange) {
                 primary.width = MediaLayout::kExpandedWidth * g_settings.sizeScale;
                 primary.height = MediaLayout::kExpandedHeight * g_settings.sizeScale;
                 // (Immersive lyrics: the island keeps its normal 380px width.)
@@ -23224,9 +23307,7 @@ DWORD WINAPI RenderThreadProc(void*) {
             }
         }
 
-        const bool fullscreenSuppressed =
-            isFullscreen && !g_fullscreenOverrideVisible.load(std::memory_order_relaxed);
-        if ((isHidden || fullscreenSuppressed) && !privacyActive && !pinned && !isHoverExpanded && !isTransientAlert) {
+        if (isHidden && !privacyActive && !pinned && !isHoverExpanded && !isTransientAlert) {
             primary.width = 0.0f;
             primary.height = 0.0f;
             secondary.reset();
@@ -23597,17 +23678,16 @@ DWORD WINAPI RenderThreadProc(void*) {
                             hover, pinned, now);
         }
 
-        // --- Zero-CPU parking for auto-hidden states (idle timeout / fullscreen) ---
+        // Park once the idle auto-hide animation settles.
         // Only parks once the collapse animation has actually settled at 0,
         // so the shrink still animates before we cut over to OS-hidden.
         const bool wantsAutoHiddenPark =
             !g_manuallyHidden.load() && !pinned && !isHoverExpanded && !isTransientAlert &&
-            !privacyActive && (isHidden || fullscreenSuppressed) &&
+            !privacyActive && isHidden &&
             widthSpring.value < 0.5f && heightSpring.value < 0.5f &&
             std::fabs(widthSpring.velocity) < 0.5f && std::fabs(heightSpring.velocity) < 0.5f;
 
         if (wantsAutoHiddenPark) {
-            parkedForFullscreen = fullscreenSuppressed;
             wasAutoHiddenParked = true;
             g_autoHiddenParked = true;
             ShowWindow(hwnd, SW_HIDE);
