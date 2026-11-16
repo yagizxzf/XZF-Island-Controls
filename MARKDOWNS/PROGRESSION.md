@@ -15,3 +15,7 @@ Forkun ilk sürümü e06b308 ile GitHub main dalına gönderildi. Windhawk 1.7.3
 1.4.0.2 ile şerit üzerinde hover açılışı ve fare ayrılınca şeride dönüş eklendi. Canlı RDR2 oturumunda iki durum geçişi gözlendi ve kullanıcı dönüşü doğruladı. İlk dönüşün ani olduğu geri bildirimiyle 1.4.0.3, normal boyut animasyonunu şerit hedefi ve içerik sönümüyle birleştirdi. Kullanıcı RDR2'de yeni dönüşün çalıştığını doğruladı.
 
 1.4.0.3 genişletilmiş medya paneline seçili uygulama için ses seviyesi ve sessize alma kontrolleri ekledi. Yerel medya kaynaklarından YouTube Music ve XZF Browse, uygulama kimlikleriyle ilgili ses oturumlarına bağlandı. Yalıtılmış sessiz ses oturumu yüzde 37 ve sessizde olarak doğrulandı, Windows ana ses seviyesi ve sessiz durumu sabit kaldı. Windhawk x86/x64 derlemeleri başarılı ve yerel 1.4.0.3 etkin.
+
+## 2026-11-16T21:38:24+03:00
+
+1.4.0.4, otomatik genişleme ve parça değişimi animasyonunu YouTube Music masaüstü uygulamasının Windows kimliğine bağladı. Albüm kapağı güncellemeleri kendi zamanlamasını kullanır. x86 ve x64 Windhawk derlemeleri ile kaynak kimliği, tarayıcı, elle kaynak geçişi, beş saniyelik süre, hariç tutma ve ayar kapatma senaryoları geçti. Yerel Windhawk yeni DLL'i yükledi. 100 ayarın dosyayla eşleşmesi doğrulandı. Canlı bir parça atlama işlemi yapılmadı.

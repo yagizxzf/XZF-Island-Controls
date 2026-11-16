@@ -2,7 +2,7 @@
 // @id              xzf-island-controls
 // @name            XZF Island Controls
 // @description     A living, breathing pill overlay inspired by iPhone's Dynamic Island. Reacts to media, downloads, clipboard, battery, and more.
-// @version         1.4.0.3
+// @version         1.4.0.4
 // @author          Himanshu
 // @github          https://github.com/devcode90
 // @homepage        https://github.com/yagizxzf/XZF-Island-Controls
@@ -20,6 +20,7 @@ Windows Game Bar leave a thin strip at the island's position. Hover over it to
 open the island when hover expansion and reveal are enabled. The island animates
 back to the strip when the pointer leaves. The expanded media panel controls
 the volume and mute state of the selected source when its audio session is found.
+Automatic expansion on track changes is for the YouTube Music desktop app.
 
 A fluid, living overlay inspired by Apple's Dynamic Island, bringing a beautiful, highly-responsive UI to your Windows desktop. Built natively with hardware-accelerated Direct2D rendering for a buttery-smooth 60 FPS experience.
 
@@ -369,8 +370,8 @@ We love community contributions! To ensure high-quality updates, please follow t
     $name: Media module
     $description: Shows album art, song info, and playback controls when music is playing.
   - MediaAutoExpand: true
-    $name: Auto-expand on track change
-    $description: Automatically expand the island when a new song or video starts playing. If disabled, album art updates smoothly in the collapsed pill without unprompted expansion.
+    $name: Auto-expand on YouTube Music track change
+    $description: Automatically expand the island when a new track plays in the YouTube Music desktop app. Other sources update the collapsed player.
   - MediaPillClock: true
     $name: Show clock in the collapsed media pill
     $description: While media is playing, the collapsed pill also shows the current time on the left, separated from the album cover by a thin divider. Hovering still opens the normal player. Uses the same 12h/24h and seconds options as the clock below. Off by default.
@@ -516,8 +517,8 @@ We love community contributions! To ensure high-quality updates, please follow t
     $name: File Tray remembers items (disk)
     $description: Keeps the tray's contents across restarts, in the mod's storage folder. Only file paths and pasted text snippets are stored, never copies of your files. Turn off to stop all disk reads and writes and delete the saved list.
   - MediaExpandBlocklist: ''
-    $name: Never auto-expand for these apps
-    $description: 'Comma-separated list of app or site names that should never make the island expand on a track change, while still updating quietly in the collapsed pill. Matched loosely against the media source and title, for example: chrome, tiktok, youtube.'
+    $name: Exclude YouTube Music tracks from auto-expand
+    $description: Comma-separated terms matched against the source and track title for automatic expansion.
   - GameOverlayShowFps: true
     $name: Game overlay - show FPS
     $description: Include the frame rate in the game overlay strip.
@@ -1314,6 +1315,7 @@ struct MediaSnapshot {
     uint64_t sourceIconGeneration = 0;
     double artChangedAt = 0.0;
     double titleChangedAt = 0.0;
+    double autoExpandTrackAt = 0.0;
     int64_t positionTicks = 0;
     int64_t endTicks = 0;
     int64_t lastUpdatedTicks = 0;
@@ -4734,36 +4736,27 @@ bool WindowLooksLikeMediaSource(HWND hwnd, const std::wstring& sourceLower) {
            (base.find(L"vlc") != std::wstring::npos && sourceLower.find(L"vlc") != std::wstring::npos);
 }
 
-// #62: short-form video feeds change "track" every few seconds, which turned
-// auto-expand into a constant popup. A blocklist entry is matched loosely
-// against the friendly source name, the raw AUMID and the title, so a single
-// entry like "tiktok" catches both the desktop app and a browser tab. The
-// collapsed pill still updates -- only the expansion is suppressed.
-//
-// Reads the blocklist under g_settingsMutex rather than taking a Settings
-// reference: the caller is the render loop, and walking a std::vector<std::wstring>
-// that LoadSettings() may be reassigning is a use-after-free, not just a stale
-// read. The haystack is built outside the lock because that part allocates.
-bool MediaExpandBlocked(const MediaSnapshot& media) {
-    {
-        // Fast path for the overwhelmingly common empty-blocklist case: one
-        // uncontended lock, no allocation, no string work.
-        std::lock_guard lock(g_settingsMutex);
-        if (g_settings.mediaExpandBlocklist.empty()) {
-            return false;
-        }
+bool MediaTrackAutoExpandAllowed(const MediaSnapshot& media) {
+    // The installed YouTube Music desktop client publishes this Windows app ID.
+    // A browser's generic media session does not establish the site's identity.
+    constexpr wchar_t youtubeMusicAppId[] = L"com.github.th-ch.youtube-music";
+    if (CompareStringOrdinal(media.sourceAppUserModelId.c_str(), -1,
+                             youtubeMusicAppId, -1, TRUE) != CSTR_EQUAL) {
+        return false;
     }
+
+    std::lock_guard lock(g_settingsMutex);
+    if (!g_settings.mediaAutoExpand) return false;
+    if (g_settings.mediaExpandBlocklist.empty()) return true;
 
     const std::wstring haystack = ToLowerCopy(
         media.sourceName + L"\n" + media.sourceAppUserModelId + L"\n" + media.title);
-
-    std::lock_guard lock(g_settingsMutex);
     for (const std::wstring& needle : g_settings.mediaExpandBlocklist) {
         if (!needle.empty() && haystack.find(needle) != std::wstring::npos) {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 bool IsBrowserMediaSource(std::wstring_view source) {
@@ -5561,15 +5554,20 @@ DWORD WINAPI MediaThreadProc(void*) {
             }
         }
 
+        const bool canAutoExpand = next.playing && !next.title.empty() && MediaTrackAutoExpandAllowed(next);
         bool trackJustChanged = false;
         {
             std::lock_guard lock(g_stateMutex);
 
             // A switch the user asked for is not a "new track": it must not auto-expand
             // the island or open the 5s recentTrackChange window.
+            const bool sameSource = next.sourceAppUserModelId == g_state.media.sourceAppUserModelId;
+            if (sameSource) {
+                next.autoExpandTrackAt = g_state.media.autoExpandTrackAt;
+            }
             const bool userSourceSwitch =
                 !g_state.media.sourceAppUserModelId.empty() &&
-                next.sourceAppUserModelId != g_state.media.sourceAppUserModelId &&
+                !sameSource &&
                 NowSeconds() - g_userSourceSwitchAt.load() < 4.0;
             if (userSourceSwitch) {
                 next.titleChangedAt = g_state.media.titleChangedAt;
@@ -5580,6 +5578,7 @@ DWORD WINAPI MediaThreadProc(void*) {
 
             if (isDifferentTrack) {
                 next.titleChangedAt = NowSeconds();
+                next.autoExpandTrackAt = canAutoExpand ? next.titleChangedAt : 0.0;
                 trackJustChanged = true;
                 g_idleTab = 0;
             }
@@ -5591,8 +5590,7 @@ DWORD WINAPI MediaThreadProc(void*) {
                 next.artGeneration = g_state.media.artGeneration;
                 next.artChangedAt = g_state.media.artChangedAt;
             }
-            if (!next.sourceIcon &&
-                next.sourceAppUserModelId == g_state.media.sourceAppUserModelId) {
+            if (!next.sourceIcon && sameSource) {
                 next.sourceIcon = g_state.media.sourceIcon;
                 next.sourceIconGeneration = g_state.media.sourceIconGeneration;
             }
@@ -5605,7 +5603,7 @@ DWORD WINAPI MediaThreadProc(void*) {
 
         if (trackJustChanged) {
             g_layoutDirty = true;
-            if (g_settings.mediaAutoExpand) {
+            if (canAutoExpand) {
                 TriggerNudge();
             }
         }
@@ -23421,12 +23419,12 @@ DWORD WINAPI RenderThreadProc(void*) {
         // *title* change is transient now, so the pill behaves like the clipboard
         // and battery alerts -- it surfaces, then hides again while playback
         // continues in the background.
-        const bool recentTrackChange = g_settings.mediaAutoExpand &&
-                                       !MediaExpandBlocked(snapshot.media) &&
-                                       primary.kind == IslandKind::Media &&
+        const bool recentTrackChange = primary.kind == IslandKind::Media &&
                                        snapshot.media.playing &&
                                        !snapshot.media.title.empty() &&
-                                       (now - snapshot.media.titleChangedAt < 5.0);
+                                       snapshot.media.autoExpandTrackAt > 0.0 &&
+                                       now - snapshot.media.autoExpandTrackAt < 5.0 &&
+                                       MediaTrackAutoExpandAllowed(snapshot.media);
 
         bool isTransientAlert = (primary.kind == IslandKind::Clipboard ||
                                  primary.kind == IslandKind::Notification ||
